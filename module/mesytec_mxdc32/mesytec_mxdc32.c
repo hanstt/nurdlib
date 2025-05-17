@@ -458,6 +458,7 @@ mesytec_mxdc32_cmvlc_init(struct MesytecMxdc32Module *a_mxdc32,
 {
 	LOGF(verbose)(LOGL, NAME" cmvlc_init {");
 
+#if NCONF_mMAP_bCMVLC
 	if (a_dt) {
 		/* Read event counter, low then high word. */
 		cmvlc_stackcmd_vme_rw(a_stack, a_mxdc32->address + 0x6092, 0,
@@ -475,6 +476,11 @@ mesytec_mxdc32_cmvlc_init(struct MesytecMxdc32Module *a_mxdc32,
 		cmvlc_stackcmd_vme_rw(a_stack, a_mxdc32->address + 0x6034, 1,
 				      vme_rw_write, vme_user_A32, vme_D16);
 	}
+#else
+	(void) a_mxdc32;
+	(void) a_stack;
+	(void) a_dt;
+#endif
 
 	LOGF(verbose)(LOGL, NAME" cmvlc_init }");
 }
@@ -485,6 +491,7 @@ mesytec_mxdc32_cmvlc_fetch(struct Crate *a_crate,
 			   struct EventBuffer *a_event_buffer,
 			   uint32_t *a_in_buffer, uint32_t *a_in_remain)
 {
+#if NCONF_mMAP_bCMVLC
 	uint32_t *outp;
 	uint32_t result;
 
@@ -519,6 +526,14 @@ mesytec_mxdc32_cmvlc_fetch(struct Crate *a_crate,
 done:
 	EVENT_BUFFER_ADVANCE(*a_event_buffer, outp);
 	return result;
+#else
+	(void) a_crate;
+	(void) a_mxdc32;
+	(void) a_event_buffer;
+	(void) a_in_buffer;
+	(void) a_in_remain;
+	return 0;
+#endif
 }
 
 uint32_t
