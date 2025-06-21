@@ -238,7 +238,7 @@ uint32_t f_user_cmvlc_fetch(struct Crate *a_crate,
 	if (ret < 0)
 	  {
 	    log_error(LOGL, "Failed to get cmvlc event: "
-		      "%d.", ret);
+		      "%d - %s", ret, cmvlc_last_error(g_cmvlc));
 	    result |= CRATE_READOUT_FAIL_ERROR_DRIVER;
 	    goto done;
 	  }
