@@ -22,13 +22,25 @@
 
 #include <util/udp.h>
 #include <util/string.h>
+#include <util/time.h>
 #include <ntest/ntest.h>
+#include <math.h>
 
 NTEST(ServerSetup)
 {
 	struct UDPServer *server;
+	int i;
 
-	server = udp_server_create(UDP_IPV4, 12346);
+	/* With tests running in parallel, port may be in use.
+	 * Try several times.
+	 */
+	for (i = 0; i < 10; i++) {
+		server = udp_server_create(UDP_IPV4, 12346);
+		if (NULL != server)
+			break;
+		/* Do a somewhat random sleep up to 10 ms. */
+		time_sleep(fmod(time_getd(),0.01));
+	}
 	NTRY_PTR(NULL, !=, server);
 	udp_server_free(&server);
 	NTRY_PTR(NULL, ==, server);
@@ -51,6 +63,7 @@ NTEST(ServerClient)
 	struct UDPDatagram datagram;
 	struct UDPServer *server;
 	char *s;
+	int i;
 
 	/*
 	 * NOTE:
@@ -61,7 +74,16 @@ NTEST(ServerClient)
 	 */
 
 	s = (char *)datagram.buf;
-	server = udp_server_create(UDP_IPV4, 12348);
+	/* With tests running in parallel, port may be in use.
+	 * Try several times.
+	 */
+	for (i = 0; i < 10; i++) {
+		server = udp_server_create(UDP_IPV4, 12348);
+		if (NULL != server)
+			break;
+		/* Do a somewhat random sleep up to 10 ms. */
+		time_sleep(fmod(time_getd(),0.01));
+	}
 	NTRY_PTR(NULL, !=, server);
 
 	{
