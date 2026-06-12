@@ -32,6 +32,10 @@
 #include <ctrl/ctrl.h>
 #include <module/map/map.h>
 #include <nurdlib/base.h>
+#include <tests/udp_lock.h>
+
+/* This is not a nice way...: */
+#include <tests/udp_lock.c>
 
 #define SYSCALL(err, func, args) do { \
 	if (err == func args) { \
@@ -62,6 +66,10 @@ main(void)
 
 	SYSCALL(-1, pipe, (pip));
 
+	/* Fixed port is used, test can not be run concurrently. */
+	LOCK_PORT;
+
+	printf("Client connecting...\n");
 	server_pid = fork();
 	if (-1 == server_pid) {
 		log_err(LOGL, "fork");
@@ -110,6 +118,9 @@ main(void)
 		free(buf[1]);
 		free(buf[2]);
 		SYSCALL(-1, close, (pip[1]));
+
+		UNLOCK_PORT;
+
 		return 0;
 	}
 
