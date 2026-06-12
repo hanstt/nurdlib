@@ -62,7 +62,7 @@ static int nconf_test_(void) {
 	bar0 = mmap(NULL, PCI_BAR0_SIZE, PROT_WRITE | PROT_READ, MAP_SHARED |
 	    MAP_LOCKED, fd, 0);
 	if (MAP_FAILED == bar0) {
-		fprintf(stderr, "mmap: %s.\n", strerror(errno));
+		fprintf(stderr, "mmap(%s): %s.\n", PEX_DEV, strerror(errno));
 		return 0;
 	}
 	munmap(NULL, PCI_BAR0_SIZE);
