@@ -28,16 +28,16 @@ RUNNER_MAKE_J=-j8
 endif
 
 CHECK_MAP_PRE=dir=$$(BUILD_DIR_PREFIX=$@_ make -C .. -s -f gmake/build_dir_echo.mk) && nconf=../$$dir/nconf/module/map/map && if ! grep
-CHECK_MAP_POST=$${nconf}.h; then cat $${nconf}.h.log; echo "$@ branch failed!" 1>&2; exit 1; fi
+CHECK_MAP_POST=$${nconf}.h; then cat $${nconf}.h.log; tail $${nconf}.h.log 1>&2; echo "$@ branch failed!" 1>&2; exit 1; fi
 
 CHECK_EBONE_PRE=dir=$$(BUILD_DIR_PREFIX=$@_ make -C .. -s -f gmake/build_dir_echo.mk) && nconf=../$$dir/nconf/module/gsi_etherbone/nconf && if ! grep
-CHECK_EBONE_POST=$${nconf}.h; then cat $${nconf}.h.log; echo "$@ branch failed!" 1>&2; exit 1; fi
+CHECK_EBONE_POST=$${nconf}.h; then cat $${nconf}.h.log; tail $${nconf}.h.log 1>&2; echo "$@ branch failed!" 1>&2; exit 1; fi
 
 CHECK_PEX_PRE=dir=$$(BUILD_DIR_PREFIX=$@_ make -C .. -s -f gmake/build_dir_echo.mk) && nconf=../$$dir/nconf/module/gsi_pex/nconf && if ! grep
-CHECK_PEX_POST=$${nconf}.h; then cat $${nconf}.h.log; echo "$@ branch failed!" 1>&2; exit 1; fi
+CHECK_PEX_POST=$${nconf}.h; then cat $${nconf}.h.log; tail $${nconf}.h.log 1>&2; echo "$@ branch failed!" 1>&2; exit 1; fi
 
 CHECK_TRLOII_PRE=dir=$$(BUILD_DIR_PREFIX=$@_ make -C .. -s -f gmake/build_dir_echo.mk) && nconf=../$$dir/nconf/include/nurdlib/trloii && if ! grep
-CHECK_TRLOII_POST=$${nconf}.h; then cat $${nconf}.h.log; echo "$@ branch failed!" 1>&2; exit 1; fi
+CHECK_TRLOII_POST=$${nconf}.h; then cat $${nconf}.h.log; tail $${nconf}.h.log 1>&2; echo "$@ branch failed!" 1>&2; exit 1; fi
 
 .PHONY: all
 all: rio3find rio3smem rio4bma xpc326 xpc3310 rio2 universe rimfaxe \
