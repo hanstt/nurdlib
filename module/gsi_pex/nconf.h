@@ -59,8 +59,12 @@ static int nconf_test_(void) {
 		fprintf(stderr, "open(%s): %s.\n", PEX_DEV, strerror(errno));
 		return 0;
 	}
-	bar0 = mmap(NULL, PCI_BAR0_SIZE, PROT_WRITE | PROT_READ, MAP_SHARED |
-	    MAP_LOCKED, fd, 0);
+	/* Not using MAP_LOCKED (used in module/gsi_pex/gsi_pex.c),
+	 * since it fails on RedHat 8 with a resource unavailable
+	 * error, preventing mock tests.
+	 */
+	bar0 = mmap(NULL, PCI_BAR0_SIZE, PROT_WRITE | PROT_READ, MAP_SHARED,
+	    fd, 0);
 	if (MAP_FAILED == bar0) {
 		fprintf(stderr, "mmap(%s): %s.\n", PEX_DEV, strerror(errno));
 		return 0;
