@@ -277,7 +277,7 @@ clean:  clean_rio3find_ \
 	clean_etherbone_cmvlc_config_lib_ \
 	clean_pex_ \
 	clean_tridi_ \
-	clean_trlo_ \
+	clean_trlo_
 	rm -rf */*.a */*.o */lib/ pex \
 	    tridi/*/lib_mock/*.a tridi/*/lib_mock/*.o \
 	    tridi/trloctrl/*/*/*.a tridi/trloctrl/*/*/*.o \
