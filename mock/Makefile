@@ -314,7 +314,7 @@ caensys/CAENVMElib.h: caenabs/CAENVMElib.h
 caensys/libCAENVME.so: caenabs/libCAENVME.so.suff
 	$(QUIET)echo CAEN $@ && \
 	$(MKDIR) && \
-	ln -s ../$< $@
+	ln -f -s ../$< $@
 
 mvlcc/libmesytec-mvlc.a: mvlcc/mesytec-mvlc.o
 mvlcc/libmvlcc.a: mvlcc/mvlcc.o
