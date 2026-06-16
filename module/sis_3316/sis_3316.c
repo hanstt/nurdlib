@@ -4293,6 +4293,9 @@ sis_3316_calculate_settings(struct Sis3316Module *a_module)
 			    + a_module->config.sample_length_maw[0]
 			    + 50;
 		}
+		if (a_module->config.trigger_gate_window_length[i] > ((1 << 16))) {
+			a_module->config.trigger_gate_window_length[i] = ((1 << 16)); /* respect maximum active trigger gate window length */
+		}
 
 		LOGF(verbose)(LOGL,
 		    "trigger_gate_window_length[%d]=%d (calc).",
