@@ -137,8 +137,8 @@ uint32_t sis_3316_test_channel(struct Sis3316Module*, int, uint32_t, uint32_t
     *, size_t, uint32_t) FUNC_RETURNS;
 uint32_t sis_3316_read_channel(struct Sis3316Module*, int, uint32_t, struct
     EventBuffer *) FUNC_RETURNS;
-uint32_t sis_3316_read_channel_dma(struct Sis3316Module*, int, uint32_t,
-    struct EventBuffer *) FUNC_RETURNS;
+uint32_t sis_3316_read_channel_dma(struct Crate *, struct Sis3316Module*, int, uint32_t,
+	struct EventBuffer *) FUNC_RETURNS;
 void sis_3316_read_stat_counters(struct Sis3316Module *);
 int sis_3316_check_channel_data(struct Sis3316Module*, int, struct
     EventConstBuffer *) FUNC_RETURNS;
@@ -2075,19 +2075,16 @@ sis_3316_readout_dt(struct Crate *a_crate, struct Module *a_module)
 		goto sis_3316_readout_done;
 	}
 
-#define DO_EXPECT_ONLY_TRIGGER_ONE
-#ifdef DO_EXPECT_ONLY_TRIGGER_ONE
-	/* BL: Only expect real data on trigger 1 */
+	/* Only expect real data on trigger type 13 and lower */
 	{
 		unsigned gsi_mbs_trigger;
 		gsi_mbs_trigger = crate_gsi_mbs_trigger_get(a_crate);
-		if (gsi_mbs_trigger != 1) {
+		if (gsi_mbs_trigger > 13) {
 			LOGF(spam)(LOGL, NAME"skipping trigger = %d",
 			    gsi_mbs_trigger);
 			goto sis_3316_readout_done;
 		}
 	}
-#endif
 
 	/*
 	 * Only in synchronous mode must the addr threshold be crossed
@@ -2295,8 +2292,6 @@ sis_3316_readout(struct Crate *a_crate, struct Module *a_module, struct
 	uint32_t event_num;
 	double now = 0;
 
-	(void)a_crate;
-
 	LOGF(spam)(LOGL, NAME" readout {");
 	result = 0;
 
@@ -2459,7 +2454,7 @@ sis_3316_readout(struct Crate *a_crate, struct Module *a_module, struct
 				result |= sis_3316_read_channel(m, ch,
 				    words_in_channel, a_event_buffer);
 			} else {
-				result |= sis_3316_read_channel_dma(m, ch,
+				result |= sis_3316_read_channel_dma(a_crate, m, ch,
 				    words_in_channel, a_event_buffer);
 			}
 			if (0 != result) {
@@ -2782,7 +2777,7 @@ sis_3316_read_channel(struct Sis3316Module *a_sis3316, int a_ch, uint32_t
 }
 
 uint32_t
-sis_3316_read_channel_dma(struct Sis3316Module* a_sis3316, int a_ch, uint32_t
+sis_3316_read_channel_dma(struct Crate *a_crate, struct Sis3316Module* a_sis3316, int a_ch, uint32_t
     a_words_to_read, struct EventBuffer *a_event_buffer)
 {
 	uint32_t* outp;
@@ -2792,6 +2787,9 @@ sis_3316_read_channel_dma(struct Sis3316Module* a_sis3316, int a_ch, uint32_t
 	uint32_t offset;
 	uint32_t bytes_to_read;
 	int adc;
+	unsigned int gsi_mbs_trigger;
+
+	gsi_mbs_trigger = crate_gsi_mbs_trigger_get(a_crate);
 
 	LOGF(spam)(LOGL, NAME" read_channel %d with DMA {", a_ch);
 
