@@ -164,6 +164,29 @@ void sis_3316_adjust_address_threshold(struct Sis3316Module *, double);
 void sis_3316_configure_external_clock_input(struct Sis3316Module *);
 uint32_t sis_rataclock_firmware_check(uint32_t firmware);
 uint32_t extract_bit_range(uint32_t word, uint32_t first_bit, uint32_t last_bit); /* if deemed useful, this function should to general utilities - wherever this is */
+void get_set_bits_string(uint16_t num, char *buffer); /* if deemed useful, this function should go to general utilities - wherever this is */
+
+void
+get_set_bits_string(uint16_t num, char *buffer) {
+    int position = 0;
+    int offset = 0;
+	int first = 1;
+
+    while (num != 0) {
+        if (num & 1) {
+            if (!first) {
+                offset += sprintf(buffer + offset, ",");
+            }
+            offset += sprintf(buffer + offset, "%d", position);
+            first = 0;
+        }
+        num >>= 1;
+        position++;
+    }
+
+    /* termination of string */
+    buffer[offset] = '\0';
+}
 
 #define CHECK_REG_SET_MASK(reg, val, mask) do { \
 		uint32_t reg_; \
@@ -1446,7 +1469,7 @@ sis_3316_init_fast(struct Crate *a_crate, struct Module *a_module)
 	}
 
 	LOGF(verbose)(LOGL, "May discard data for channels: %08x.",
-	    m->config.discard_data);
+	    m->config.discard_enabled);
 
 	/* Note: Timestamp clear is now done in post_init function. */
 
@@ -2869,153 +2892,95 @@ sis_3316_read_channel_dma(struct Crate *a_crate, struct Sis3316Module* a_sis3316
 	/* Add channel header */
 	*header = filler;
 
-	/* Skip this part, if this should not be discarded */
-	if (((a_sis3316->config.discard_data >> a_ch) & 1) == 1)
+	/* check if data in channel is to be discarded */
+	if (((a_sis3316->config.discard_enabled >> a_ch) & 1) == 1) /* discard option might apply for this channel yes/no */
 	{
-		uint32_t baseline;
-		uint32_t energy;
-		uint32_t *header_end_ptr;
-		uint32_t *avg_samples_ptr;
-		uint32_t header_end;
-		char status_flag;
-		size_t adc_mem_i;
+		uint16_t read_on_ttype = a_sis3316->config.readout_on_trigger_type[a_ch];
+		if (((read_on_ttype >> (gsi_mbs_trigger-1)) & 1) != 0) /* readout on specific trigger type overwrites any other discard option */
+		{
+			uint16_t metadata_words = a_sis3316->config.header_length[adc];
+			uint16_t words_to_read_now = (metadata_words +3U) & ~3U; /* Have to read a multiple of 4 words to stay properly aligned in 2eSST mode. */
+			uint16_t words_appendix = words_to_read_now - metadata_words;
+			uint32_t *word_array = malloc(words_to_read_now*sizeof(uint32_t));
+			uint8_t int_trigger_flag;
+			uint8_t discard_now = 0;
+			size_t adc_mem_i;
+			uint32_t header_end;
+			uint32_t *header_end_ptr;
+			uint32_t *avg_samples_ptr = NULL;
+			uint16_t disc_on_ttype = a_sis3316->config.discard_on_trigger_type[a_ch];
+			uint16_t disc_on_ps = (a_sis3316->config.discard_on_pulse_shape & (uint16_t)(1U << a_ch));
+			uint16_t disc_on_it = (a_sis3316->config.discard_if_no_int_trigger & (uint16_t)(1U << a_ch));
+			uint8_t avg_mode = a_sis3316->config.average_mode[a_ch];
 
-		LOGF(spam)(LOGL, "Peeking into event header [%d] {", a_ch);
-		LOGF(spam)(LOGL, "a_words_to_read = %d.", a_words_to_read);
-		LOGF(spam)(LOGL, "use_maw3 = %d.",
-		    a_sis3316->config.use_maw3);
-
-		/*
-		 * Have to read a multiple of 4 words in 2eSST mode to stay
-		 * properly aligned. Settle for 8, we'll have the status flag
-		 * in there in any case.
-		 * If readout of the gates is enabled, then only 6+2 is
-		 * allowed. In this case we'll need to read at least 16 words
-		 * to have the gates + status flag in the data.
-		 */
-		if (a_sis3316->config.use_accumulator2 == 0) {
-			assert(a_words_to_read >= 8);
-		} else {
-			assert(a_words_to_read >= 16);
-		}
-
-		/* Assume that the maw3 values are never read out */
-		assert(a_sis3316->config.use_maw3 == 0);
-
-		adc_mem_i = 0;
-
-		/* timestamp 1 */
-		*outp++ = MAP_READ_OFS(a_sis3316->sicy_map,
-		    adc_fifo_memory_fifo(adc), adc_mem_i*sizeof(uint32_t));
-		++adc_mem_i;
-		/* timestamp 2 */
-		*outp++ = MAP_READ_OFS(a_sis3316->sicy_map,
-		    adc_fifo_memory_fifo(adc), adc_mem_i*sizeof(uint32_t));
-		++adc_mem_i;
-
-		if (a_sis3316->config.use_accumulator2 == 1 ||
-		    a_sis3316->config.use_accumulator6 == 1) {
-			int i;
-			/* both must be set! */
-			assert(a_sis3316->config.use_accumulator2 == 1);
-			assert(a_sis3316->config.use_accumulator6 == 1);
-			for (i = 0; i < 9; ++i) {
-				/* peak + gates */
-				*outp++ = MAP_READ_OFS(a_sis3316->sicy_map,
-				    adc_fifo_memory_fifo(adc), adc_mem_i*sizeof(uint32_t));
-				++adc_mem_i;
+			for (adc_mem_i = 0; adc_mem_i < words_to_read_now; ++adc_mem_i) {
+				word_array[adc_mem_i] = MAP_READ_OFS(a_sis3316->sicy_map, adc_fifo_memory_fifo(adc), adc_mem_i*sizeof(uint32_t));	
+				*outp++ = word_array[adc_mem_i];				
 			}
-		}
+			a_words_to_read -= words_to_read_now;
+			bytes_to_read -= words_to_read_now * 4;
 
-		/* baseline */
-		baseline = MAP_READ_OFS(a_sis3316->sicy_map,
-		    adc_fifo_memory_fifo(adc), adc_mem_i*sizeof(uint32_t));
-		++adc_mem_i;
-		*outp++ = baseline;
-		LOGF(spam)(LOGL, "baseline = 0x%08x.", baseline);
-
-		/* energy */
-		energy = MAP_READ_OFS(a_sis3316->sicy_map,
-		    adc_fifo_memory_fifo(adc), adc_mem_i*sizeof(uint32_t));
-		++adc_mem_i;
-		*outp++ = energy;
-		LOGF(spam)(LOGL, "energy = 0x%08x.", energy);
-
-		/* header_end */
-		header_end_ptr = outp; /* save this memory location for later */
-		header_end = MAP_READ_OFS(a_sis3316->sicy_map,
-		    adc_fifo_memory_fifo(adc), adc_mem_i*sizeof(uint32_t));
-		++adc_mem_i;
-		*outp++ = header_end;
-		LOGF(spam)(LOGL, "header_end = 0x%08x.", header_end);
-		assert((header_end & 0xf0000000) == 0xa0000000);
-
-		avg_samples_ptr = outp;
-
-		/* average samples */
-		*outp++ = MAP_READ_OFS(a_sis3316->sicy_map,
-		    adc_fifo_memory_fifo(adc), adc_mem_i*sizeof(uint32_t));
-		++adc_mem_i;
-		/* adc data */
-		*outp++ = MAP_READ_OFS(a_sis3316->sicy_map,
-		    adc_fifo_memory_fifo(adc), adc_mem_i*sizeof(uint32_t));
-		++adc_mem_i;
-
-		/* this need not be read, when reading gates */
-		if (a_sis3316->config.use_accumulator6 == 0) {
-			/* adc data */
-			*outp++ = MAP_READ_OFS(a_sis3316->sicy_map,
-			    adc_fifo_memory_fifo(adc), adc_mem_i*sizeof(uint32_t));
-			++adc_mem_i;
-		}
-
-		if (a_sis3316->config.use_accumulator6 == 1) {
-			a_words_to_read -= 16;
-			bytes_to_read -= 16 * 4;
-		} else {
-			a_words_to_read -= 8;
-			bytes_to_read -= 8 * 4;
-		}
-
-		LOGF(spam)(LOGL, "Peeking into event header }");
-
-		/* check the condition, if should stop reading this channel */
-		status_flag = (header_end >> 26) & 0x1;
-
-		if (a_sis3316->config.discard_threshold == 0) {
-			if (status_flag == 1) {
-				LOGF(spam)(LOGL, "Status flag is set!");
+			if (avg_mode != 0) {
+				header_end = word_array[words_to_read_now-words_appendix-2];
+				header_end_ptr = outp;
+				header_end_ptr -= -words_appendix+2;
+				avg_samples_ptr = outp-words_appendix-1;
 			} else {
-				LOGF(spam)(LOGL,
-				    "Status flag is not set! SKIP!");
+				header_end = word_array[words_to_read_now-words_appendix-1];
+				header_end_ptr = outp;
+				header_end_ptr -= -words_appendix+1;
+			}
+			int_trigger_flag = (header_end >> 26) & 0x1;
 
-				/*
-				 * rewrite *header_end_ptr and *avg_samples_ptr to not confuse
-				 * the unpacker.
-				 */
-				LOGF(spam)(LOGL,
-				    "Rewriting header_end_ptr:  %08x.",
-				    *header_end_ptr);
-				LOGF(spam)(LOGL,
-				    "Rewriting avg_samples_ptr: %08x.",
-				    *avg_samples_ptr);
-
-				*header_end_ptr =  0xa2000000; /* status flag always 0 here */
-				if (a_sis3316->config.use_accumulator6 == 0) {
-					*avg_samples_ptr = 0xe0000002; /* two data words following */
-				} else {
-					*avg_samples_ptr = 0xe0000001; /* only one data word following */
+			if (((disc_on_ttype >> (gsi_mbs_trigger-1)) & 1) != 0) {
+				discard_now = 1;				
+			} else {	
+				if (disc_on_it != 0) {
+					/* check if inteneral trigger flag is set */
+					if (int_trigger_flag == 0) {
+						discard_now = 1;
+					}
 				}
+				if ((disc_on_ps != 0) && (discard_now == 0)) {
+					uint8_t i;
+					double accum_gate_val[8];
+					for (i = 0; i < 8; ++i) {
+						double gate_width = (double)(a_sis3316->config.gate[i].width+1);
+						if (i == 0) {
+							accum_gate_val[i] = (double)extract_bit_range(word_array[3+i], 0, 23)/gate_width;
+						} else {
+							accum_gate_val[i] = (double)extract_bit_range(word_array[3+i], 0, 27)/gate_width;
+						}
+					}
+					/* check if pulse shape looks fine */
+					for (i = 1; i < 8; ++i) {
+						accum_gate_val[i] = fabs(accum_gate_val[i] - accum_gate_val[0]);
+					}
+					for (i = 1; i < 6; ++i) {
+						if (accum_gate_val[i] < accum_gate_val[i+2]) {
+							discard_now = 1; /* in case pulse is not monotonic decreasing */
+						}
+					}
+				}
+			}
 
+			free(word_array);
+		
+			if (discard_now == 0) {
+				LOGF(spam)(LOGL, "Payload of channel is not discarded!");
+			} else {
+				LOGF(spam)(LOGL, "Payload of channel is discarded!");
+				if (avg_mode != 0) {
+					*header_end_ptr = 0xa2000000 + (int_trigger_flag << 26);
+					*avg_samples_ptr = 0xe0000000 + words_appendix;
+				} else {
+					*header_end_ptr = 0xe2000000 + (int_trigger_flag << 26) + words_appendix;					
+				}
 				goto end_readout_channel_dma;
 			}
-		} else {
-			log_error(LOGL, "Decision based on energy threshold not implemented yet!");
-			abort();
 		}
-	} else {
-		LOGF(spam)(LOGL, "[%d] This channel data is never discarded.",
-		    a_ch);
+
+
 	}
 
 	offset = ADC_MEM_OFFSET * (adc + 1);
@@ -3426,7 +3391,7 @@ sis_3316_check_hit(struct Sis3316Module *a_sis3316, int a_ch, int a_hit,
 	}
 
 	/* check for possible discarded event */
-	if (((a_sis3316->config.discard_data >> a_ch) & 1) == 1) {
+	if (((a_sis3316->config.discard_enabled >> a_ch) & 1) == 1) {
 		if (buffer_words_avg > 0) {
 			header_word = *(p + header_words - 2);
 			discarded_event = extract_bit_range(header_word, 25, 25); /* using one of the two overhead bits to flag a discarded event */
@@ -3576,18 +3541,6 @@ sis_3316_get_config(struct Sis3316Module *a_module, struct ConfigBlock
 	    KW_USE_EXTERNAL_VETO, 0, 15);
 	LOGF(verbose)(LOGL, "use_external_veto = mask 0x%08x.",
 	    a_module->config.use_external_veto);
-
-	/* use discard data */
-	a_module->config.discard_data = config_get_bitmask(a_block,
-	    KW_DISCARD_DATA, 0, 15);
-	LOGF(verbose)(LOGL, "discard_data = mask 0x%08x.",
-	    a_module->config.discard_data);
-
-	/* discard threshold */
-	a_module->config.discard_threshold = config_get_int32(a_block, KW_DISCARD_THRESHOLD,
-	    CONFIG_UNIT_NONE, INT_MIN, INT_MAX);
-	LOGF(verbose)(LOGL, "discard_threshold = %d.",
-	    a_module->config.discard_threshold);
 
 	/* DAC offset */
 	CONFIG_GET_INT_ARRAY(a_module->config.dac_offset, a_block,
@@ -4094,6 +4047,85 @@ sis_3316_get_config(struct Sis3316Module *a_module, struct ConfigBlock
 		LOGF(verbose)(LOGL, "pretrigger_delay_maw_e[%d] = %d.",
 		    (int)i, a_module->config.pretrigger_delay_maw_e[i]);
 	}
+
+	/* discard if no internal trigger */
+	a_module->config.discard_if_no_int_trigger = config_get_bitmask(a_block,
+	    KW_DISCARD_IF_NO_INT_TRIGGER, 0, 15);
+	if (a_module->config.discard_if_no_int_trigger > 0) {
+		char output[256];
+		get_set_bits_string(a_module->config.discard_if_no_int_trigger, output);
+		LOGF(verbose)(LOGL, "Discard if no internal trigger enabled for channels: %s", output);
+	}
+	else {
+		LOGF(verbose)(LOGL, "Discard if no internal trigger not enabled for any channel of this module.");			
+	}
+
+	/* discard on pulse shape */
+	a_module->config.discard_on_pulse_shape = config_get_bitmask(a_block,
+	    KW_DISCARD_ON_PULSE_SHAPE, 0, 15);
+	if (a_module->config.discard_on_pulse_shape > 0) {
+		char output[256];
+		get_set_bits_string(a_module->config.discard_on_pulse_shape, output);
+		LOGF(verbose)(LOGL, "Discard according to pulse shape enabled for channels: %s", output);
+	}
+	else {
+		LOGF(verbose)(LOGL, "Discard according to pulse shape not enabled for any channel of this module.");			
+	}
+
+	/* discard on trigger type (for each channel the trigger types 1 to 13 are possible, encode as a 13 bit number) */
+	CONFIG_GET_INT_ARRAY(a_module->config.discard_on_trigger_type, a_block,
+	    KW_DISCARD_ON_TRIGGER_TYPE, CONFIG_UNIT_NONE, 0, 8191);
+	for (i = 0; i < LENGTH(a_module->config.discard_on_trigger_type); ++i) {
+		char output[256];
+		get_set_bits_string(a_module->config.discard_on_trigger_type[i], output);
+		LOGF(verbose)(LOGL, "Discard channel [%d] for trigger types = %s.",
+		    (int)i, output);
+	}
+
+	/* readout on trigger type (for each channel the trigger types 1 to 13 are possible, encode as a 13 bit number) */
+	CONFIG_GET_INT_ARRAY(a_module->config.readout_on_trigger_type, a_block,
+	    KW_READOUT_ON_TRIGGER_TYPE, CONFIG_UNIT_NONE, 0, 8191);
+	for (i = 0; i < LENGTH(a_module->config.readout_on_trigger_type); ++i) {
+		char output[256];
+		get_set_bits_string(a_module->config.readout_on_trigger_type[i], output);
+		LOGF(verbose)(LOGL, "readout channel [%d] for trigger types = %s.",
+		    (int)i, output);
+	}	
+
+	/* check if any discard option is enabled */
+	a_module->config.discard_enabled = 0;
+	for (i = 0; i < N_CHANNELS; ++i) {
+		uint16_t disc_on_ttype = a_module->config.discard_on_trigger_type[i];
+		uint16_t read_on_ttype = a_module->config.readout_on_trigger_type[i];
+		uint16_t disc_on_ps = (a_module->config.discard_on_pulse_shape & (uint16_t)(1U << i));
+		uint16_t disc_on_it = (a_module->config.discard_if_no_int_trigger & (uint16_t)(1U << i));
+		uint16_t use_it = (a_module->config.use_internal_trigger & (uint16_t)(1U << i));
+		if ((disc_on_ttype != 0) |
+			(disc_on_it != 0) |
+			(disc_on_ps != 0) |
+			(read_on_ttype != 0))
+			{
+			a_module->config.discard_enabled = a_module->config.discard_enabled | (uint16_t)(1U << i);
+			if ((disc_on_ttype & read_on_ttype) != 0) {
+				log_die(LOGL, "Discard and readout for channel %d were set to happen for the same trigger type!", (int)i);
+			}
+			if ((disc_on_ps != 0) & ((a_module->config.use_accumulator2 == 0) | (a_module->config.use_accumulator6 == 0))) {
+				log_die(LOGL, "Discard on pulse shape for channel %d was set, but accum gate is not activated!", (int)i);
+			}
+			if ((disc_on_it != 0) & (use_it == 0))
+			{
+				log_die(LOGL, "Discard if no int. trig. for channel %d was set, but int. trig. is not activated!", (int)i);
+			}
+			}
+	}
+	if (a_module->config.discard_enabled > 0) {
+		char output[256];
+		get_set_bits_string(a_module->config.discard_enabled, output);
+		LOGF(verbose)(LOGL, "Discard option enabled for channels: %s", output);
+	}
+	else {
+		LOGF(verbose)(LOGL, "Discard option not enabled for any channel of this module.");			
+	}		
 
 	/* Gate blocks */
 	g_block = config_get_block(a_block, KW_GATE);

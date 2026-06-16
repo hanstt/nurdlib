@@ -152,8 +152,11 @@ struct Sis3316Config {
 	uint32_t	channels_to_read;		/* A bitmask */
 	uint32_t	use_external_gate;		/* A bitmask */
 	uint16_t	high_e_rejection;			/* A bitmask */
-	uint16_t	discard_data;			/* A bitmask */
-	int		discard_threshold;		/* full range */
+	uint16_t	discard_on_pulse_shape;			/* A bitmask */
+	uint16_t	discard_if_no_int_trigger;			/* A bitmask */
+	uint16_t	discard_on_trigger_type[N_CHANNELS];			/* An array of bitmasks */
+	uint16_t	readout_on_trigger_type[N_CHANNELS];			/* An array of bitmasks */
+	uint16_t	discard_enabled;			/* A bitmask */
 	struct Gate	gate[N_GATES];
 	enum BitDepth	bit_depth;
 	enum Keyword	blt_mode;
