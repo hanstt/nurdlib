@@ -1470,6 +1470,7 @@ sis_3316_init_slow(struct Crate *a_crate, struct Module *a_module)
 
 	m->last_dumped = 0;
 	m->last_read = 0;
+	m->last_temp_warning = 0;
 
 	m->sicy_map = map_map(m->config.address, MAP_SIZE, KW_NOBLT, 0, 0,
 	    MAP_POKE_REG(trigger_coinc_lut_control),
@@ -2811,9 +2812,13 @@ sis_3316_read_channel_dma(struct Crate *a_crate, struct Sis3316Module* a_sis3316
 		LOGF(spam)(LOGL, "Temperature: %.2f C.", temp_celsius);
 
 		if (temp_celsius > MAX_TEMP_SAFE) {
-			log_error(LOGL, "sis3316 temperature is higher than "
-			    "safe limit (%.2f > %.2f).", temp_celsius,
-			    MAX_TEMP_SAFE);
+			uint64_t time_now = (uint64_t)time(NULL);
+			if ((time_now - a_sis3316->last_temp_warning) > 60) {
+				log_error(LOGL, "sis3316 temperature is higher than "
+					"safe limit (%.2f > %.2f).", temp_celsius,
+					MAX_TEMP_SAFE);
+				a_sis3316->last_temp_warning = time_now;
+			}
 		}
 	}
 
