@@ -3383,11 +3383,12 @@ sis_3316_check_hit(struct Sis3316Module *a_sis3316, int a_ch, int a_hit,
 {
 	uint32_t const *p;
 
-	uint32_t header_words;
-	uint32_t buffer_words_raw;
-	uint32_t buffer_words_maw;
-	uint32_t buffer_words_avg;
-	int adc;
+	int adc = a_ch/4;
+
+	uint32_t header_words = a_sis3316->config.header_length[adc];
+	uint32_t buffer_words_raw = a_sis3316->config.sample_length[adc]/2;
+	uint32_t buffer_words_avg = a_sis3316->config.average_length[adc]/2;
+	uint32_t buffer_words_maw = a_sis3316->config.sample_length_maw[adc];
 
 	uint32_t header_word;
 	uint32_t payload_raw = 0;
@@ -3399,13 +3400,6 @@ sis_3316_check_hit(struct Sis3316Module *a_sis3316, int a_ch, int a_hit,
 	LOGF(spam)(LOGL, NAME" check_channel_hit[%d] {", a_hit);
 
 	p = a_event_buffer->ptr;
-
-	adc = a_ch/4;
-
-	header_words = a_sis3316->config.header_length[adc];
-	buffer_words_raw = a_sis3316->config.sample_length[adc]/2;
-	buffer_words_avg = a_sis3316->config.average_length[adc]/2;
-	buffer_words_maw = a_sis3316->config.sample_length_maw[adc];
 
 	/* check header */
 	if (a_sis3316->config.check_level >= CL_SLOPPY) {
