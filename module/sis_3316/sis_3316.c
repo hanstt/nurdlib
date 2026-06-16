@@ -970,7 +970,8 @@ sis_3316_init_fast(struct Crate *a_crate, struct Module *a_module)
 			cfd_bits = 3; /* 50% mode */
 		}
 		MAP_WRITE(m->sicy_map, channel_trigger_threshold(i),
-		      (1 << 31) /* Trigger enable */
+		    (1 << 31) /* Trigger enable */
+			| (((m->config.high_e_rejection >> i) & 1) << 30) /* rejection above high en thresh yes/no */
 		    | (cfd_bits << 28)
 		    | m->config.threshold[i]);
 		SERIALIZE_IO;
@@ -3951,6 +3952,12 @@ sis_3316_get_config(struct Sis3316Module *a_module, struct ConfigBlock
 		    (int)i, a_module->config.threshold_high_e_V[i]);
 	}
 
+	/* reject triggers from signals above high energy threshold */
+	a_module->config.high_e_rejection = config_get_bitmask(a_block,
+		KW_HIGH_E_REJECTION, 0, 15);
+	LOGF(verbose)(LOGL, "high_e_rejection = mask 0x%08x.",
+		a_module->config.high_e_rejection);
+	
 	/* Peak time for trigger filter */
 	CONFIG_GET_INT_ARRAY(a_module->config.peak, a_block,
 	    KW_PEAK, CONFIG_UNIT_NONE, 2, 510);

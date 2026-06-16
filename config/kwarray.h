@@ -228,6 +228,7 @@ static char const g_keyword_array[][52] = {
 	"gate_offset",
 	"gate_short",
 	"header_id",
+	"high_e_rejection",
 	"hires",
 	"hpge",
 	"include",

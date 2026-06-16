@@ -151,6 +151,7 @@ struct Sis3316Config {
 	uint32_t	use_tau_correction;		/* A bitmask */
 	uint32_t	channels_to_read;		/* A bitmask */
 	uint32_t	use_external_gate;		/* A bitmask */
+	uint16_t	high_e_rejection;			/* A bitmask */
 	uint16_t	discard_data;			/* A bitmask */
 	int		discard_threshold;		/* full range */
 	struct Gate	gate[N_GATES];
