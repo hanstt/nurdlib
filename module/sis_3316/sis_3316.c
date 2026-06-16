@@ -4104,25 +4104,29 @@ sis_3316_get_config(struct Sis3316Module *a_module, struct ConfigBlock
 	/* Gate blocks */
 	g_block = config_get_block(a_block, KW_GATE);
 	for (i = 0; i < N_GATES; ++i) {
+		uint16_t width_max = (1 << 9); /* accum gate width value has 9 bit */
+		if (i == 0) {
+			width_max = (1 << 8); /* accum gate value 0 has 24 bit, so it makes sense to limit width to 8 bit */
+		}
 		if (NULL == g_block) {
 			log_error(LOGL,
 			    NAME" Missing GATE(%d) block.", (int)i);
 			abort();
 		}
+		/* Gate width */
+		a_module->config.gate[i].width =
+		    config_get_int32(g_block, KW_WIDTH,
+			CONFIG_UNIT_NS, (1000 / a_module->config.clk_freq),
+			width_max * (1000 / a_module->config.clk_freq));
+		LOGF(verbose)(LOGL, "gate[%d].width = %d ns.",
+		    (int)i, a_module->config.gate[i].width);
 		/* Time after trigger */
 		a_module->config.gate[i].delay =
 		    config_get_int32(g_block, KW_TIME_AFTER_TRIGGER,
 			CONFIG_UNIT_NS, 0,
-			(1 << 16) * (1000 / a_module->config.clk_freq));
+			(((1 << 16) - 1) * (1000 / a_module->config.clk_freq) - a_module->config.gate[i].width)); /* gate start plus width <= maximum trigger gate window = 2^16 - 1 */
 		LOGF(verbose)(LOGL, "gate[%d].delay = %d ns.",
 		    (int)i, a_module->config.gate[i].delay);
-		/* Gate width */
-		a_module->config.gate[i].width =
-		    config_get_int32(g_block, KW_WIDTH,
-			CONFIG_UNIT_NS, 0,
-			(1 << 9) * (1000 / a_module->config.clk_freq));
-		LOGF(verbose)(LOGL, "gate[%d].width = %d ns.",
-		    (int)i, a_module->config.gate[i].width);
 
 		g_block = config_get_block_next(g_block, KW_GATE);
 	}
