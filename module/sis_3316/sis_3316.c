@@ -3761,8 +3761,7 @@ sis_3316_get_config(struct Sis3316Module *a_module, struct ConfigBlock
 		LOGF(verbose)(LOGL,
 		    "average length[%" PRIz "]     = %d samples.",
 		    i, a_module->config.average_length[i]);
-		a_module->config.average_length[i] -=
-		    a_module->config.average_length[i] % 2;
+		a_module->config.average_length[i] &= ~1u; /* LSB not used */
 	}
 
 	/* check level */
@@ -3962,30 +3961,34 @@ sis_3316_get_config(struct Sis3316Module *a_module, struct ConfigBlock
 	CONFIG_GET_INT_ARRAY(a_module->config.peak, a_block,
 	    KW_PEAK, CONFIG_UNIT_NONE, 2, 510);
 	for (i = 0; i < LENGTH(a_module->config.peak); ++i) {
+		a_module->config.peak[i] &= ~1u; /* LSB not used */
 		LOGF(verbose)(LOGL, "peak[%d] = %d.",
 		    (int)i, a_module->config.peak[i]);
 	}
 
 	/* Gap time for trigger filter */
 	CONFIG_GET_INT_ARRAY(a_module->config.gap, a_block,
-	    KW_GAP, CONFIG_UNIT_NONE, 0, 510);
+	    KW_GAP, CONFIG_UNIT_NONE, 2, 510);
 	for (i = 0; i < LENGTH(a_module->config.gap); ++i) {
+		a_module->config.peak[i] &= ~1u; /* LSB not used */		
 		LOGF(verbose)(LOGL, "gap[%d] = %d.",
 		    (int)i, a_module->config.gap[i]);
 	}
 
 	/* Peak time for energy filter */
 	CONFIG_GET_INT_ARRAY(a_module->config.peak_e, a_block,
-	    KW_PEAK_E, CONFIG_UNIT_NONE, 0, 2044);
+	    KW_PEAK_E, CONFIG_UNIT_NONE, 2, 2044);
 	for (i = 0; i < LENGTH(a_module->config.peak_e); ++i) {
+		a_module->config.peak_e[i] &= ~1u; /* LSB not used */
 		LOGF(verbose)(LOGL, "peak_e[%d] = %d.",
 		    (int)i, a_module->config.peak_e[i]);
 	}
 
 	/* Gap time for energy filter */
 	CONFIG_GET_INT_ARRAY(a_module->config.gap_e, a_block,
-	    KW_GAP_E, CONFIG_UNIT_NONE, 0, 2044);
+	    KW_GAP_E, CONFIG_UNIT_NONE, 0, 510);
 	for (i = 0; i < LENGTH(a_module->config.gap_e); ++i) {
+		a_module->config.gap_e[i] &= ~1u; /* LSB not used */
 		LOGF(verbose)(LOGL, "gap_e[%d] = %d.",
 		    (int)i, a_module->config.gap_e[i]);
 	}
