@@ -3481,7 +3481,7 @@ sis_3316_check_hit(struct Sis3316Module *a_sis3316, int a_ch, int a_hit,
 	else {
 		header_word = *(p + header_words - 1);
 		total_event_length = header_words + extract_bit_range(header_word, 0, 14); /* if discarded event, some samples might be attached just for padding */
-		printf("discarded event: a_ch, a_hit, adc %u %u %u , header word: 0x%08x \n", a_ch, a_hit, adc, header_word);
+		/* printf("discarded event: a_ch, a_hit, adc %u %u %u , header word: 0x%08x \n", a_ch, a_hit, adc, header_word); */
 	}
 
 	if (a_sis3316->config.check_level >= CL_PARANOID) {
