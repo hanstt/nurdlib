@@ -3986,7 +3986,7 @@ sis_3316_get_config(struct Sis3316Module *a_module, struct ConfigBlock
 
 	/* Gap time for energy filter */
 	CONFIG_GET_INT_ARRAY(a_module->config.gap_e, a_block,
-	    KW_GAP_E, CONFIG_UNIT_NONE, 0, 510);
+	    KW_GAP_E, CONFIG_UNIT_NONE, 2, 510);
 	for (i = 0; i < LENGTH(a_module->config.gap_e); ++i) {
 		a_module->config.gap_e[i] &= ~1u; /* LSB not used */
 		LOGF(verbose)(LOGL, "gap_e[%d] = %d.",
