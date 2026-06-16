@@ -36,6 +36,7 @@
 
 static struct Map	*get_map(struct Module *) FUNC_RETURNS;
 static void	usage(char const *, ...) FUNC_PRINTF(1, 2);
+static void	check_non_dumb_mapping(void);
 
 static char const *g_arg0;
 static struct Map *g_map;
@@ -103,6 +104,16 @@ usage(char const *a_fmt, ...)
 	fprintf(str, "  -w, --raw-write=bits,value  Write \"bits\"-bit value "
 	    "to offset.\n");
 	exit(exit_code);
+}
+
+void
+check_non_dumb_mapping(void)
+{
+#ifdef SICY_DUMB
+	fprintf(stderr, "Hardward access is not possible with DUMB mapping.\n"
+	    "Running on a server with no hardware access?\n");
+	exit(EXIT_FAILURE);
+#endif
 }
 
 int
@@ -261,6 +272,7 @@ main(int argc, char *argv[])
 			struct PackerNode *p;
 			size_t dgram_array_i;
 
+			check_non_dumb_mapping();
 			if (0 == type) {
 				usage("Missing module type.");
 			}
@@ -310,6 +322,7 @@ main(int argc, char *argv[])
 			char *end;
 			unsigned int bits;
 
+			check_non_dumb_mapping();
 			bits = strtol(str, &end, 10);
 			if (16 != bits && 32 != bits && '\0' != *end) {
 				usage("Invalid raw-read option \"%s\".", str);
@@ -338,6 +351,7 @@ main(int argc, char *argv[])
 			uint32_t value;
 			unsigned int bits;
 
+			check_non_dumb_mapping();
 			bits = strtol(str, &end, 10);
 			if (16 != bits && 32 != bits && ',' != *end) {
 				usage("Invalid raw-write option \"%s\".",
