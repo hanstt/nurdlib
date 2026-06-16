@@ -2790,6 +2790,7 @@ sis_3316_read_channel_dma(struct Crate *a_crate, struct Sis3316Module* a_sis3316
 	unsigned int gsi_mbs_trigger;
 
 	gsi_mbs_trigger = crate_gsi_mbs_trigger_get(a_crate);
+	(void)gsi_mbs_trigger;
 
 	LOGF(spam)(LOGL, NAME" read_channel %d with DMA {", a_ch);
 
