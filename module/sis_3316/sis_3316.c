@@ -565,8 +565,8 @@ sis_3316_setup_adcs(struct Sis3316Module *m)
 
 	/* Set ADC chips via SPI */
 	if (m->config.bit_depth == BD_14BIT) {
-		adc_input_span = SPI_AD9634_INPUT_SPAN_1V75;
-		adc_output_mode = SPI_AD9634_OUTPUT_INVERT;
+		adc_input_span = SPI_AD9643_INPUT_SPAN_1V75;
+		adc_output_mode = SPI_AD9643_OUTPUT_INVERT;
 
 	} else {
 		/* adc_input_span = SPI_AD9268_INPUT_SPAN_1V5; */
