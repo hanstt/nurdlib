@@ -561,7 +561,7 @@ sis_3316_setup_adcs(struct Sis3316Module *m)
 {
 	int i;
 	char adc_output_mode;
-	char adc_input_span;
+	uint8_t adc_input_span;
 
 	/* Set ADC chips via SPI */
 	if (m->config.bit_depth == BD_14BIT) {
@@ -569,7 +569,8 @@ sis_3316_setup_adcs(struct Sis3316Module *m)
 		adc_output_mode = SPI_AD9634_OUTPUT_INVERT;
 
 	} else {
-		adc_input_span = SPI_AD9268_INPUT_SPAN_1V5;
+		/* adc_input_span = SPI_AD9268_INPUT_SPAN_1V5; */
+		adc_input_span = SPI_AD9268_INPUT_SPAN_2V;
 		adc_output_mode = SPI_AD9268_OUTPUT_LVDS;
 	}
 	if (m->config.bit_depth != BD_16BIT
