@@ -200,6 +200,7 @@ struct Sis3316Module {
 	uint32_t	num_hits;
 	double		last_dumped;
 	double		last_read;
+	uint64_t	last_temp_warning;
 };
 
 void	sis_3316_calculate_settings(struct Sis3316Module *);
