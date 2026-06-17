@@ -590,9 +590,7 @@ sis_3316_setup_adcs(struct Sis3316Module *m)
 	if (m->config.bit_depth == BD_14BIT) {
 		adc_input_span = SPI_AD9643_INPUT_SPAN_1V75;
 		adc_output_mode = SPI_AD9643_OUTPUT_INVERT;
-
 	} else {
-		/* adc_input_span = SPI_AD9268_INPUT_SPAN_1V5; */
 		adc_input_span = SPI_AD9268_INPUT_SPAN_2V;
 		adc_output_mode = SPI_AD9268_OUTPUT_LVDS;
 	}
@@ -603,6 +601,29 @@ sis_3316_setup_adcs(struct Sis3316Module *m)
 	}
 	for (i = 0; i < N_ADCS; ++i) {
 		int adc;
+		if (m->config.bit_depth == BD_14BIT) {
+			if (adc_input_span == SPI_AD9643_INPUT_SPAN_1V5) {
+				m->config.input_span_modfact[i] = 1.5/1.75; /* non-default input span */
+			} else if (adc_input_span == SPI_AD9643_INPUT_SPAN_1V75) {
+				m->config.input_span_modfact[i] = 1.;
+			} else if (adc_input_span == SPI_AD9643_INPUT_SPAN_2V) {
+				m->config.input_span_modfact[i] = 2./1.75; /* non-default input span */
+			} else {
+				log_die(LOGL,"Unknown ADC input span setting for AD9643.");
+			}
+		} else {
+			if (adc_input_span == SPI_AD9268_INPUT_SPAN_1V25) {
+				m->config.input_span_modfact[i] = 1.25/2.; /* non-default input span */
+			} else if (adc_input_span == SPI_AD9268_INPUT_SPAN_1V5) {
+				m->config.input_span_modfact[i] = 1.5/2.; /* non-default input span */
+			} else if (adc_input_span == SPI_AD9268_INPUT_SPAN_1V75) {
+				m->config.input_span_modfact[i] = 1.75/2.; /* non-default input span */
+			} else if (adc_input_span == SPI_AD9268_INPUT_SPAN_2V) {
+				m->config.input_span_modfact[i] = 1.;
+			} else {
+				log_die(LOGL,"Unknown ADC input span setting for AD9268.");
+			}
+		}
 		for (adc = SPI_CH12; adc <= SPI_CH34; adc += SPI_CH34) {
 			/* Reset ADC chip */
 			MAP_WRITE(m->sicy_map, fpga_adc_spi_control(i),
@@ -4423,7 +4444,8 @@ sis_3316_calculate_settings(struct Sis3316Module *a_module)
 		double counts_per_V;
 		adc_i = i / N_CH_PER_ADC;
 		counts_per_V = (double)(1 << 16)
-		    / (double)a_module->config.range[adc_i];
+		    / (double)a_module->config.range[adc_i]
+			/ a_module->config.input_span_modfact[adc_i];
 		if ((i % N_CH_PER_ADC) == 0) {
 			LOGF(verbose)(LOGL, "ADC %u: range = %d -> "
 			    "counts_per_V = %f", adc_i,

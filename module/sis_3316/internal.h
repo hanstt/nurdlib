@@ -53,12 +53,13 @@
 #define SPI_OP_TRANSFER		0xff
 #define SPI_OP_RESET		0x00
 #define SPI_AD9643_INPUT_SPAN_1V5	0x15
-#define SPI_AD9643_INPUT_SPAN_1V75	0x0
+#define SPI_AD9643_INPUT_SPAN_1V75	0x0 /* default value */
 #define SPI_AD9643_INPUT_SPAN_2V	0xB
 #define SPI_AD9643_OUTPUT_INVERT	0x4
+#define SPI_AD9268_INPUT_SPAN_1V25	0x00
 #define SPI_AD9268_INPUT_SPAN_1V5	0x40
 #define SPI_AD9268_INPUT_SPAN_1V75	0x80
-#define SPI_AD9268_INPUT_SPAN_2V	0xC0
+#define SPI_AD9268_INPUT_SPAN_2V	0xC0 /* default value */
 #define SPI_AD9268_OUTPUT_INVERT	0x4
 #define SPI_AD9268_DITHER_ENABLE	0x10
 #define SPI_AD9268_OUTPUT_LVDS		0x40
@@ -176,6 +177,7 @@ struct Sis3316Config {
 	uint32_t	average_length[N_ADCS];		/* 0, 2, 4, ... 65534 samples */
 	int		tap_delay_fine_tune;		/* [-32 .. 32] * 40 ps */
 	uint32_t	n_memtest_bursts;	/* number of memtest bursts */
+	double input_span_modfact[N_ADCS]; /* modification factor for non-default ADC input spans */
 };
 
 struct Sis3316ChannelCounters {
