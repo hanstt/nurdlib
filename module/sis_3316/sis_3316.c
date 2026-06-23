@@ -140,11 +140,11 @@ uint32_t sis_3316_read_channel(struct Sis3316Module*, int, uint32_t, struct
 uint32_t sis_3316_read_channel_dma(struct Crate *, struct Sis3316Module*, int, uint32_t,
 	struct EventBuffer *) FUNC_RETURNS;
 void sis_3316_read_stat_counters(struct Sis3316Module *);
-int sis_3316_check_channel_data(struct Sis3316Module*, int, struct
+int sis_3316_check_channel_data(struct Crate *a_crate, struct Sis3316Module*, int, struct
     EventConstBuffer *) FUNC_RETURNS;
 uint32_t sis_3316_check_channel_padding(struct Sis3316Module*, int, struct
     EventConstBuffer *);
-void sis_3316_check_hit(struct Sis3316Module *, int, int, struct
+void sis_3316_check_hit(struct Crate *a_crate, struct Sis3316Module *, int, int, struct
     EventConstBuffer *);
 void sis_3316_dump_data(void const *, void const *);
 void sis_3316_dump_stat_counters(struct Sis3316Module *, int);
@@ -2516,7 +2516,7 @@ sis_3316_channel_readout_done:
 
 			ebuf.ptr = start;
 			ebuf.bytes = (uintptr_t)(a_event_buffer->ptr) - (uintptr_t)start;
-			ok += sis_3316_check_channel_data(m, ch, &ebuf);
+			ok += sis_3316_check_channel_data(a_crate, m, ch, &ebuf);
 			/*
 			 * Reset the FSM
 			 * This is needed to clear out the FIFO until the next read.
@@ -3243,7 +3243,7 @@ sis_3316_dump_data(void const *start, void const *end)
 }
 
 int
-sis_3316_check_channel_data(struct Sis3316Module *a_sis3316, int a_ch,
+sis_3316_check_channel_data(struct Crate *a_crate,struct Sis3316Module *a_sis3316, int a_ch,
     struct EventConstBuffer *a_event_buffer)
 {
 	uint32_t hit;
@@ -3269,7 +3269,7 @@ sis_3316_check_channel_data(struct Sis3316Module *a_sis3316, int a_ch,
 			LOGF(spam)(LOGL, "Found %d hits.", hit);
 			goto sis_3316_check_channel_data_done;
 		}
-		sis_3316_check_hit(a_sis3316, a_ch, hit, a_event_buffer);
+		sis_3316_check_hit(a_crate, a_sis3316, a_ch, hit, a_event_buffer);
 		++hit;
 	}
 
@@ -3364,10 +3364,11 @@ uint32_t extract_bit_range(uint32_t word, uint32_t first_bit, uint32_t last_bit)
 }
 
 void
-sis_3316_check_hit(struct Sis3316Module *a_sis3316, int a_ch, int a_hit,
+sis_3316_check_hit(struct Crate *a_crate, struct Sis3316Module *a_sis3316, int a_ch, int a_hit,
     struct EventConstBuffer *a_event_buffer)
 {
 	uint32_t const *p;
+	unsigned int gsi_mbs_trigger;
 
 	int adc = a_ch/4;
 
@@ -3382,6 +3383,8 @@ sis_3316_check_hit(struct Sis3316Module *a_sis3316, int a_ch, int a_hit,
 	uint32_t payload_maw = 0;
 	uint32_t discarded_event = 0;
 	uint32_t total_event_length = 0;
+
+	gsi_mbs_trigger = crate_gsi_mbs_trigger_get(a_crate);
 
 	LOGF(spam)(LOGL, NAME" check_channel_hit[%d] {", a_hit);
 
@@ -3443,14 +3446,14 @@ sis_3316_check_hit(struct Sis3316Module *a_sis3316, int a_ch, int a_hit,
 			if (payload_raw != buffer_words_raw) {
 				{
 					log_error(LOGL,
-			    	" raw payload in header looks fishy, expected: %u, instead: %u, header word: 0x%08x", payload_raw, buffer_words_raw, header_word_raw);
+			    	" raw payload in header looks fishy for ch. %d and trig. type %d, expected: %u, instead: %u, header word: 0x%08x", gsi_mbs_trigger, a_ch, payload_raw, buffer_words_raw, header_word_raw);
 					goto err;
 				}
 			}
 			if (payload_avg != buffer_words_avg) {
 				{
 					log_error(LOGL,
-			    	" avg payload in header looks fishy, expected: %u, instead: %u, header word: 0x%08x", payload_avg, buffer_words_avg, header_word_avg);
+			    	" avg payload in header looks fishy for ch. %d and trig. type %d, expected: %u, instead: %u, header word: 0x%08x", gsi_mbs_trigger, a_ch, payload_avg, buffer_words_avg, header_word_avg);
 					goto err;
 				}
 			}
@@ -4136,7 +4139,7 @@ sis_3316_get_config(struct Sis3316Module *a_module, struct ConfigBlock
 			}
 			if ((disc_on_it != 0) & (use_it != 0) & (use_et == 1))
 			{
-				log_die(LOGL, "Discard if no int. trig. for channel %d was set, but write data for ext. trig. needs to be activated and for int. trig deactivated!", (int)i);
+				log_die(LOGL, "Discard if no int. trig. for channel %d was set, but write data for ext. trig. needs to be activated and for int. trig. deactivated!", (int)i);
 			}
 			}
 	}
