@@ -4099,7 +4099,7 @@ sis_3316_get_config(struct Sis3316Module *a_module, struct ConfigBlock
 	for (i = 0; i < LENGTH(a_module->config.discard_on_trigger_type); ++i) {
 		char output[256];
 		get_set_bits_string(a_module->config.discard_on_trigger_type[i], output);
-		LOGF(verbose)(LOGL, "Discard channel [%d] for trigger types = %s.",
+		LOGF(verbose)(LOGL, "Discard channel [%d] for trigger types = %s. + 1",
 		    (int)i, output);
 	}
 
@@ -4109,7 +4109,7 @@ sis_3316_get_config(struct Sis3316Module *a_module, struct ConfigBlock
 	for (i = 0; i < LENGTH(a_module->config.readout_on_trigger_type); ++i) {
 		char output[256];
 		get_set_bits_string(a_module->config.readout_on_trigger_type[i], output);
-		LOGF(verbose)(LOGL, "readout channel [%d] for trigger types = %s.",
+		LOGF(verbose)(LOGL, "readout channel [%d] for trigger types = %s + 1.",
 		    (int)i, output);
 	}	
 
@@ -4121,6 +4121,7 @@ sis_3316_get_config(struct Sis3316Module *a_module, struct ConfigBlock
 		uint16_t disc_on_ps = (a_module->config.discard_on_pulse_shape & (uint16_t)(1U << i));
 		uint16_t disc_on_it = (a_module->config.discard_if_no_int_trigger & (uint16_t)(1U << i));
 		uint16_t use_it = (a_module->config.use_internal_trigger & (uint16_t)(1U << i));
+		uint16_t use_et = (a_module->config.use_external_trigger & (uint16_t)(1U << i));
 		if ((disc_on_ttype != 0) |
 			(disc_on_it != 0) |
 			(disc_on_ps != 0) |
@@ -4133,9 +4134,9 @@ sis_3316_get_config(struct Sis3316Module *a_module, struct ConfigBlock
 			if ((disc_on_ps != 0) & ((a_module->config.use_accumulator2 == 0) | (a_module->config.use_accumulator6 == 0))) {
 				log_die(LOGL, "Discard on pulse shape for channel %d was set, but accum gate is not activated!", (int)i);
 			}
-			if ((disc_on_it != 0) & (use_it == 0))
+			if ((disc_on_it != 0) & (use_it != 0) & (use_et == 1))
 			{
-				log_die(LOGL, "Discard if no int. trig. for channel %d was set, but int. trig. is not activated!", (int)i);
+				log_die(LOGL, "Discard if no int. trig. for channel %d was set, but write data for ext. trig. needs to be activated and for int. trig deactivated!", (int)i);
 			}
 			}
 	}
