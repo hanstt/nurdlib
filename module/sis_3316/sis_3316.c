@@ -164,28 +164,33 @@ void sis_3316_adjust_address_threshold(struct Sis3316Module *, double);
 void sis_3316_configure_external_clock_input(struct Sis3316Module *);
 uint32_t sis_rataclock_firmware_check(uint32_t firmware);
 uint32_t extract_bit_range(uint32_t word, uint32_t first_bit, uint32_t last_bit); /* if deemed useful, this function should to general utilities - wherever this is */
-void get_set_bits_string(uint16_t num, char *buffer); /* if deemed useful, this function should go to general utilities - wherever this is */
+void get_set_bits_string(uint16_t num, char *buffer, int offset); /* if deemed useful, this function should go to general utilities - wherever this is */
 
 void
-get_set_bits_string(uint16_t num, char *buffer) {
+get_set_bits_string(uint16_t num, char *buffer, int offset) {
     int position = 0;
-    int offset = 0;
+    int buff_offset = 0;
 	int first = 1;
 
     while (num != 0) {
         if (num & 1) {
             if (!first) {
-                offset += sprintf(buffer + offset, ",");
+                buff_offset += sprintf(buffer + buff_offset, ",");
             }
-            offset += sprintf(buffer + offset, "%d", position);
+            buff_offset += sprintf(buffer + buff_offset, "%d", position+offset);
             first = 0;
         }
         num >>= 1;
         position++;
     }
+    /* If no bit is set of num */
+	if (first) {
+    	strcpy(buffer, "None");	
+	}
+}
 
-    /* termination of string */
-    buffer[offset] = '\0';
+uint32_t extract_bit_range(uint32_t word, uint32_t first_bit, uint32_t last_bit) {
+	return (uint32_t)((word & BITS_MASK(first_bit, last_bit)) / (uint32_t)pow(2, first_bit));
 }
 
 #define CHECK_REG_SET_MASK(reg, val, mask) do { \
@@ -1862,7 +1867,7 @@ get_event_counter_retry:
 		    fpga_ctrl_status_data_transfer_control(i), addr);
 
 		/* Sleep for at least 1 us (Struck) */
-		time_sleep(1e-6); /* BL: Let's try 1 us */
+		time_sleep(1e-6*(float)(tries+1)); /* BL: Let's try 1 us; GW: and increase if data is not valid */
 
 		/* Read event counter value */
 		/* i.e. second scaler value */
@@ -2736,8 +2741,8 @@ sis_3316_test_channel(struct Sis3316Module *a_sis3316, int a_ch, uint32_t
 		}
 	}
 
-	LOGF(debug)(LOGL, "Channel has %d words of data and we expected %d "
-	    "(not critical).", words_to_read, a_words_to_read);
+	LOGF(debug)(LOGL, "Channel %d has %d words of data and we expected %d "
+	    "(not critical).", a_ch, words_to_read, a_words_to_read);
 
 	*a_actual_words = words_to_read;
 
@@ -2835,9 +2840,7 @@ sis_3316_read_channel_dma(struct Crate *a_crate, struct Sis3316Module* a_sis3316
 	uint32_t bytes_to_read;
 	int adc;
 	unsigned int gsi_mbs_trigger;
-
 	gsi_mbs_trigger = crate_gsi_mbs_trigger_get(a_crate);
-	(void)gsi_mbs_trigger;
 
 	LOGF(spam)(LOGL, NAME" read_channel %d with DMA {", a_ch);
 
@@ -2914,10 +2917,12 @@ sis_3316_read_channel_dma(struct Crate *a_crate, struct Sis3316Module* a_sis3316
 	*header = filler;
 
 	/* check if data in channel is to be discarded */
+/*	printf("ch -> %u, discard enabled -> %u \n", a_ch, ((a_sis3316->config.discard_enabled >> a_ch) & 1)); */
 	if (((a_sis3316->config.discard_enabled >> a_ch) & 1) == 1) /* discard option might apply for this channel yes/no */
 	{
 		uint16_t read_on_ttype = a_sis3316->config.readout_on_trigger_type[a_ch];
-		if (((read_on_ttype >> (gsi_mbs_trigger-1)) & 1) != 0) /* readout on specific trigger type overwrites any other discard option */
+		/* printf("ch -> %u, read on present trigger type -> %u \n", a_ch, ((read_on_ttype >> (gsi_mbs_trigger-1)) & 1)); */
+		if (((read_on_ttype >> (gsi_mbs_trigger-1)) & 1) == 0) /* readout on specific trigger type overwrites any other discard option */
 		{
 			uint16_t metadata_words = a_sis3316->config.header_length[adc];
 			uint16_t words_to_read_now = (metadata_words +3U) & ~3U; /* Have to read a multiple of 4 words to stay properly aligned in 2eSST mode. */
@@ -2932,7 +2937,7 @@ sis_3316_read_channel_dma(struct Crate *a_crate, struct Sis3316Module* a_sis3316
 			uint16_t disc_on_ttype = a_sis3316->config.discard_on_trigger_type[a_ch];
 			uint16_t disc_on_ps = (a_sis3316->config.discard_on_pulse_shape & (uint16_t)(1U << a_ch));
 			uint16_t disc_on_it = (a_sis3316->config.discard_if_no_int_trigger & (uint16_t)(1U << a_ch));
-			uint8_t avg_mode = a_sis3316->config.average_mode[a_ch];
+			uint32_t avg_mode = a_sis3316->config.average_mode[adc];
 
 			for (adc_mem_i = 0; adc_mem_i < words_to_read_now; ++adc_mem_i) {
 				word_array[adc_mem_i] = MAP_READ_OFS(a_sis3316->sicy_map, adc_fifo_memory_fifo(adc), adc_mem_i*sizeof(uint32_t));	
@@ -2944,12 +2949,16 @@ sis_3316_read_channel_dma(struct Crate *a_crate, struct Sis3316Module* a_sis3316
 			if (avg_mode != 0) {
 				header_end = word_array[words_to_read_now-words_appendix-2];
 				header_end_ptr = outp;
-				header_end_ptr -= -words_appendix+2;
-				avg_samples_ptr = outp-words_appendix-1;
+				header_end_ptr -= words_appendix + 2;
+				avg_samples_ptr = outp;
+				avg_samples_ptr -= words_appendix + 1;
+				/* printf("ch -> %d, AVG mode, header_end word: 0x%08x \n", a_ch, *header_end_ptr);
+				printf("ch -> %d, AVG mode, avg_samples word: 0x%08x \n", a_ch, *avg_samples_ptr); */
 			} else {
 				header_end = word_array[words_to_read_now-words_appendix-1];
 				header_end_ptr = outp;
-				header_end_ptr -= -words_appendix+1;
+				header_end_ptr -= words_appendix + 1;
+				/* printf("ch -> %d, No AVG mode, header_end word: 0x%08x  \n", a_ch, *header_end_ptr); */
 			}
 			int_trigger_flag = (header_end >> 26) & 0x1;
 
@@ -2988,9 +2997,9 @@ sis_3316_read_channel_dma(struct Crate *a_crate, struct Sis3316Module* a_sis3316
 			free(word_array);
 		
 			if (discard_now == 0) {
-				LOGF(spam)(LOGL, "Payload of channel is not discarded!");
+				LOGF(spam)(LOGL, "Payload of channel %d is not discarded!", a_ch);
 			} else {
-				LOGF(spam)(LOGL, "Payload of channel is discarded!");
+				LOGF(spam)(LOGL, "Payload of channel %d is discarded!", a_ch);
 				if (avg_mode != 0) {
 					*header_end_ptr = 0xa2000000 + (int_trigger_flag << 26);
 					*avg_samples_ptr = 0xe0000000 + words_appendix;
@@ -3358,18 +3367,11 @@ err:
 	log_die(LOGL, "Corrupt data.");
 }
 
-/* if deemed useful, this function should to general utilities - wherever this is */
-uint32_t extract_bit_range(uint32_t word, uint32_t first_bit, uint32_t last_bit) {
-	return (uint32_t)((word & BITS_MASK(first_bit, last_bit)) / (uint32_t)pow(2, first_bit));
-}
-
 void
 sis_3316_check_hit(struct Crate *a_crate, struct Sis3316Module *a_sis3316, int a_ch, int a_hit,
     struct EventConstBuffer *a_event_buffer)
 {
 	uint32_t const *p;
-	unsigned int gsi_mbs_trigger;
-
 	int adc = a_ch/4;
 
 	uint32_t header_words = a_sis3316->config.header_length[adc];
@@ -3384,6 +3386,7 @@ sis_3316_check_hit(struct Crate *a_crate, struct Sis3316Module *a_sis3316, int a
 	uint32_t discarded_event = 0;
 	uint32_t total_event_length = 0;
 
+	unsigned int gsi_mbs_trigger;
 	gsi_mbs_trigger = crate_gsi_mbs_trigger_get(a_crate);
 
 	LOGF(spam)(LOGL, NAME" check_channel_hit[%d] {", a_hit);
@@ -3395,20 +3398,20 @@ sis_3316_check_hit(struct Crate *a_crate, struct Sis3316Module *a_sis3316, int a
 		header_word = *p;
 		if (extract_bit_range(header_word, 4, 7) != (uint32_t)a_ch) {
 			log_error(LOGL,
-			    " first header word has wrong channel number, expected: %u, instead: %u, header word: 0x%08x", a_ch, extract_bit_range(header_word, 4, 7), header_word);
+			    " first header word has wrong channel number -> expected: %u, instead: %u, header word: 0x%08x", a_ch, extract_bit_range(header_word, 4, 7), header_word);
 			goto err;
 		}
 		header_word = *(p + header_words - 1);
 		if (extract_bit_range(header_word, 28, 31) != 0xe) {
 			log_error(LOGL,
-			    " last header word has wrong content, expected: 0x%01x, instead: 0x%01x, header word: 0x%08x", 0xe, extract_bit_range(header_word, 28, 31), header_word);
+			    " last header word has wrong content-> expected: 0x%01x, instead: 0x%01x, header word: 0x%08x", 0xe, extract_bit_range(header_word, 28, 31), header_word);
 			goto err;
 		}
 		if (buffer_words_avg > 0) {
 			header_word = *(p + header_words - 2);
 			if (extract_bit_range(header_word, 28, 31) != 0xa) {
 				log_error(LOGL,
-			    	" average mode set, but not found in header, expected: 0x%08x, instead: 0x%08x, header word: 0x%08x", 0xa, extract_bit_range(header_word, 28, 31), header_word);
+			    	" average mode set, but not found in header -> expected: 0x%08x, instead: 0x%08x, header word: 0x%08x", 0xa, extract_bit_range(header_word, 28, 31), header_word);
 				goto err;
 			}
 		}
@@ -3424,6 +3427,7 @@ sis_3316_check_hit(struct Crate *a_crate, struct Sis3316Module *a_sis3316, int a
 			header_word = *(p + header_words - 1);
 			discarded_event = extract_bit_range(header_word, 25, 25); /* using one of the two overhead bits to flag a discarded event */
 		}
+		LOGF(spam)(LOGL, "Discard flag for channel %d -> %d, header word: 0x%08x", a_ch, discarded_event, header_word);
 	}
 
 	if (discarded_event == 0) {
@@ -3446,14 +3450,14 @@ sis_3316_check_hit(struct Crate *a_crate, struct Sis3316Module *a_sis3316, int a
 			if (payload_raw != buffer_words_raw) {
 				{
 					log_error(LOGL,
-			    	" raw payload in header looks fishy for ch. %d and trig. type %d, expected: %u, instead: %u, header word: 0x%08x", gsi_mbs_trigger, a_ch, payload_raw, buffer_words_raw, header_word_raw);
+			    	" raw payload in header looks fishy for ch. %d and trig. type %d -> expected: %u, instead: %u, header word: 0x%08x", a_ch, gsi_mbs_trigger, payload_raw, buffer_words_raw, header_word_raw);
 					goto err;
 				}
 			}
 			if (payload_avg != buffer_words_avg) {
 				{
 					log_error(LOGL,
-			    	" avg payload in header looks fishy for ch. %d and trig. type %d, expected: %u, instead: %u, header word: 0x%08x", gsi_mbs_trigger, a_ch, payload_avg, buffer_words_avg, header_word_avg);
+			    	" avg payload in header looks fishy for ch. %d and trig. type %d -> expected: %u, instead: %u, header word: 0x%08x", a_ch, gsi_mbs_trigger, payload_avg, buffer_words_avg, header_word_avg);
 					goto err;
 				}
 			}
@@ -4077,7 +4081,7 @@ sis_3316_get_config(struct Sis3316Module *a_module, struct ConfigBlock
 	    KW_DISCARD_IF_NO_INT_TRIGGER, 0, 15);
 	if (a_module->config.discard_if_no_int_trigger > 0) {
 		char output[256];
-		get_set_bits_string(a_module->config.discard_if_no_int_trigger, output);
+		get_set_bits_string(a_module->config.discard_if_no_int_trigger, output, 0);
 		LOGF(verbose)(LOGL, "Discard if no internal trigger enabled for channels: %s", output);
 	}
 	else {
@@ -4089,7 +4093,7 @@ sis_3316_get_config(struct Sis3316Module *a_module, struct ConfigBlock
 	    KW_DISCARD_ON_PULSE_SHAPE, 0, 15);
 	if (a_module->config.discard_on_pulse_shape > 0) {
 		char output[256];
-		get_set_bits_string(a_module->config.discard_on_pulse_shape, output);
+		get_set_bits_string(a_module->config.discard_on_pulse_shape, output, 0);
 		LOGF(verbose)(LOGL, "Discard according to pulse shape enabled for channels: %s", output);
 	}
 	else {
@@ -4101,8 +4105,8 @@ sis_3316_get_config(struct Sis3316Module *a_module, struct ConfigBlock
 	    KW_DISCARD_ON_TRIGGER_TYPE, CONFIG_UNIT_NONE, 0, 8191);
 	for (i = 0; i < LENGTH(a_module->config.discard_on_trigger_type); ++i) {
 		char output[256];
-		get_set_bits_string(a_module->config.discard_on_trigger_type[i], output);
-		LOGF(verbose)(LOGL, "Discard channel [%d] for trigger types = %s. + 1",
+		get_set_bits_string(a_module->config.discard_on_trigger_type[i], output, 1);
+		LOGF(verbose)(LOGL, "Discard channel [%d] for trigger types = %s.",
 		    (int)i, output);
 	}
 
@@ -4111,8 +4115,8 @@ sis_3316_get_config(struct Sis3316Module *a_module, struct ConfigBlock
 	    KW_READOUT_ON_TRIGGER_TYPE, CONFIG_UNIT_NONE, 0, 8191);
 	for (i = 0; i < LENGTH(a_module->config.readout_on_trigger_type); ++i) {
 		char output[256];
-		get_set_bits_string(a_module->config.readout_on_trigger_type[i], output);
-		LOGF(verbose)(LOGL, "readout channel [%d] for trigger types = %s + 1.",
+		get_set_bits_string(a_module->config.readout_on_trigger_type[i], output, 1);
+		LOGF(verbose)(LOGL, "readout channel [%d] for trigger types = %s.",
 		    (int)i, output);
 	}	
 
@@ -4145,7 +4149,7 @@ sis_3316_get_config(struct Sis3316Module *a_module, struct ConfigBlock
 	}
 	if (a_module->config.discard_enabled > 0) {
 		char output[256];
-		get_set_bits_string(a_module->config.discard_enabled, output);
+		get_set_bits_string(a_module->config.discard_enabled, output, 0);
 		LOGF(verbose)(LOGL, "Discard option enabled for channels: %s", output);
 	}
 	else {
