@@ -211,7 +211,7 @@ gsi_##nlib_name##_readout(struct Crate *a_crate, struct Module *a_module, \
 	unsigned event, entries; \
 \
 	(void)a_crate; \
-	LOGF(spam)(LOGL, NAME" readout {"); \
+	LOGF(debug)(LOGL, NAME" readout {"); \
 	ret = 0; \
 	MODULE_CAST(KW_GSI_##NLIB_NAME, trloii, a_module); \
 	p32 = a_event_buffer->ptr; \
@@ -275,7 +275,7 @@ nlib_name##_readout_done: \
 		} \
 	} \
 	EVENT_BUFFER_ADVANCE(*a_event_buffer, p32); \
-	LOGF(spam)(LOGL, NAME" readout(0x%08x) }", ret); \
+	LOGF(debug)(LOGL, NAME" readout(0x%08x) }", ret); \
 	return ret; \
 } \
 uint32_t \
